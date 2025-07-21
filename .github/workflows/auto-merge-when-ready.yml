@@ -1,43 +1,23 @@
-# .github/workflows/auto-merge-when-ready.yml
-name: Auto Add to Merge Queue
-
 on:
   pull_request:
     types: [labeled, synchronize]
 
 jobs:
   auto-queue:
-    if: github.event.pull_request.state == 'open'
+    if: ${{ github.event_name == 'workflow_run' || github.event.pull_request }}
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check required conditions
+      - name: Check label + Sonar
         uses: actions/github-script@v7
-        id: check-conditions
+        id: check
         with:
           script: |
-            const pr = context.payload.pull_request;
-
-            const labelExists = pr.labels.some(label => label.name === 'merge-when-ready');
-            if (!labelExists) {
-              core.setOutput('should-merge', 'false');
-              return;
-            }
-
-            // Check latest commit status for 'validate-pr'
-            const checks = await github.rest.checks.listForRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: pr.head.sha
-            });
-
-            const sonarCheck = checks.data.check_runs.find(run => run.name === 'validate-pr');
-            if (!sonarCheck || sonarCheck.conclusion !== 'success') {
-              core.setOutput('should-merge', 'false');
-              return;
-            }
-
-            core.setOutput('should-merge', 'true');
+            const pr = github.context.payload.pull_request || (await github.rest.pulls.get({owner: context.repo.owner, repo: context.repo.repo, pull_number: github.context.payload.workflow_run.pull_requests[0].number})).data;
+            const hasLabel = pr.labels.some(l => l.name === 'merge-when-ready');
+            if (!hasLabel) return core.setFailed('Label missing');
+            const checks = await github.rest.checks.listForRef({owner: context.repo.owner, repo: context.repo.repo, ref: pr.head.sha});
+            const passed = checks.data.check_runs.some(cr => cr.name === 'validate-pr' && cr.conclusion === 'success');
+            if (!passed) return core.setFailed('Sonar coverage failed');
             core.setOutput('prId', pr.node_id);
 
       - name: Enqueue PR
@@ -59,4 +39,3 @@ jobs:
               issue_number: github.context.payload.pull_request?.number || github.context.payload.workflow_run.pull_requests[0].number,
               body: "✅ Enqueued via API — please check merge-group CI. If it doesn't start, enqueue manually."
             });
-
