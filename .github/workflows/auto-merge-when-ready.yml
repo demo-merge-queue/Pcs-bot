@@ -14,80 +14,52 @@ jobs:
       contents: read
 
     steps:
-      - name: Check label and sonar status
+      - name: Check label and SonarQube status
         id: check
         uses: actions/github-script@v7
         with:
+          result-encoding: string
           script: |
-            const run = async ({ github, context, core }) => {
-              const pr = context.payload.pull_request;
-              const prNumber = pr.number;
+            const pr = context.payload.pull_request;
+            const prNumber = pr.number;
+            const prSha = pr.head.sha;
 
-              // Check label
-              const hasLabel = pr.labels.some(l => l.name === 'merge-when-ready');
-              if (!hasLabel) {
-                core.setFailed("❌ PR does not have the 'merge-when-ready' label.");
-                return;
-              }
+            const hasLabel = pr.labels.some(label => label.name === 'merge-when-ready');
+            if (!hasLabel) {
+              core.setFailed("❌ PR does not have the 'merge-when-ready' label.");
+              return;
+            }
 
-              // Get latest checks for the commit
-              const { data: checkRuns } = await github.rest.checks.listForRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: pr.head.sha
-              });
+            const { data: checks } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: prSha
+            });
 
-              const sonar = checkRuns.check_runs.find(cr => cr.name === 'validate-pr');
-              if (!sonar || sonar.conclusion !== 'success') {
-                core.setFailed("❌ 'sonarqube-coverage-report' has not passed.");
-                return;
-              }
+            const sonarCheck = checks.check_runs.find(run => run.name === 'validate-pr');
+            if (!sonarCheck || sonarCheck.conclusion !== 'success') {
+              core.setFailed("❌ 'validate-pr' (SonarQube) check has not passed.");
+              return;
+            }
 
-              // Success — pass node_id and number
-              core.setOutput('prId', pr.node_id);
-              core.setOutput('prNumber', prNumber.toString());
-            };
-
-            run({ github, context, core });
-
-      - name: Enqueue PR into merge queue
+            return prNumber;
+      
+      - name: Enqueue PR via gh CLI
         if: success()
-        uses: actions/github-script@v7
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        with:
-          script: |
-            const run = async ({ github, core }) => {
-              const prId = '${{ steps.check.outputs.prId }}';
-              if (!prId) {
-                throw new Error("❌ PR Node ID not found.");
-              }
-
-              await github.graphql(`
-                mutation($prId: ID!) {
-                  enqueuePullRequest(input: {pullRequestId: $prId}) {
-                    clientMutationId
-                  }
-                }
-              `, { prId });
-
-              console.log("✅ PR enqueued to merge queue.");
-            };
-
-            run({ github, core });
-
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} --merge --repo ${{ github.repository }}
+      
       - name: Comment on PR
         if: success()
         uses: actions/github-script@v7
         with:
           script: |
-            const run = async ({ github, context }) => {
-              const prNumber = parseInt('${{ steps.check.outputs.prNumber }}', 10);
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: "✅ This PR has passed SonarQube and has the `merge-when-ready` label. It has been **enqueued** to the GitHub merge queue."
-              });
-            };
-            run({ github, context });
+            const prNumber = context.payload.pull_request.number;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: "✅ This PR passed `validate-pr` and has the `merge-when-ready` label. It has been **added to the merge queue** via `gh pr merge`."
+            });
