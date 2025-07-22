@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: yamachu/merge-queue-action/precheck@v1
         with:
-          required-codeowners: "true"
+          required-codeowners: "false"
         id: precheck
       - name: Set base branch
         run: echo "base-branch=${{ steps.precheck.outputs.base-branch }}" >> $GITHUB_ENV
