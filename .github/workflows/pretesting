@@ -1,0 +1,29 @@
+name: pretesting
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Associated Pull Requests number'
+        required: true
+      tmp-ci-branch:
+        description: 'Temporary CI branch name'
+        required: true
+
+jobs:
+  pretesting:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: yamachu/merge-queue-action/pretesting@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-number: ${{ github.event.inputs.issue_number }}
+          tmp-ci-branch: ${{ github.event.inputs.tmp-ci-branch }}
+        id: pretesting
+      - name: Set base branch
+        run: echo "base-branch=${{ steps.pretesting.outputs.base-branch }}" >> $GITHUB_ENV
+      - name: Set base branch SHA
+        run: echo "base-branch-sha=${{ steps.pretesting.outputs.base-branch-sha }}" >> $GITHUB_ENV
