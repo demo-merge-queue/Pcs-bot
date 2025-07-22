@@ -18,7 +18,6 @@
 #       - name: Retrieve SSM Parameter
 #         id: ssm-parameter
 #         run: |
-#           parameter_name=/staging/backend/STAGING_ENV
 #           encrypted_value=$(aws ssm get-parameter --name $parameter_name --query "Parameter.Value" --output text)
 #           decrypted_value=$(aws kms decrypt --ciphertext-blob fileb://<(echo $encrypted_value | base64 --decode) --output text --query Plaintext | base64 --decode)
 #           echo "Decrypted SSM parameter value: $decrypted_value"
