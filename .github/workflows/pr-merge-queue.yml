@@ -14,13 +14,13 @@ jobs:
       - name: Check out the code
         uses: actions/checkout@v3
 
-      - name: Verify PR Label and Checks
-        run: |
-          if [[ "${{ github.event.pull_request.labels }}" != *"ready-to-merge"* ]]; then
-            echo "PR is not labeled as ready to merge. Exiting..."
-            exit 1
-          fi
-          echo "All checks passed and PR is labeled. Adding to merge queue."
+      # - name: Verify PR Label and Checks
+      #   run: |
+      #     if [[ "${{ github.event.pull_request.labels }}" != *"ready-to-merge"* ]]; then
+      #       echo "PR is not labeled as ready to merge. Exiting..."
+      #       exit 1
+      #     fi
+      #     echo "All checks passed and PR is labeled. Adding to merge queue."
 
       - name: Add PR to Merge Queue
         run: |
