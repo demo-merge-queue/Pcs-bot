@@ -46,7 +46,7 @@ jobs:
             });
 
             const targetCheck = checks.data.check_runs.find(
-              check => check.name === 'run-piperks-ci / sonarqube-coverage-report'
+              check => check.name === 'TestJavaScript'
             );
 
             if (!targetCheck) {
