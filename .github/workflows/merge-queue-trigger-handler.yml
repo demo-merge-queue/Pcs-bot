@@ -20,7 +20,7 @@ jobs:
           echo "github.event.inputs.issue_number = ${{ github.event.inputs.issue_number }}"
           echo "Using PR_NUMBER = ${{ github.event.issue.number || github.event.inputs.issue_number }}"
     
-      - uses: yamachu/merge-queue-action/precheck@main
+      - uses: demo-merge-queue/merge-queue-action/precheck@main
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
