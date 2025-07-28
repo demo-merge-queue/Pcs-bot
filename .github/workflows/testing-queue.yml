@@ -23,7 +23,7 @@ jobs:
       base-branch: ${{ steps.pretesting.outputs.base-branch }}
       base-branch-sha: ${{ steps.pretesting.outputs.base-branch-sha }}
     steps:
-      - uses: yamachu/merge-queue-action/pretesting@main
+      - uses: demo-merge-queue/merge-queue-action/pretesting@main
         id: pretesting
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -43,7 +43,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: yamachu/merge-queue-action/posttesting@main
+      - uses: demo-merge-queue/merge-queue-action/posttesting@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           base-branch: ${{ needs.PreTesting.outputs.base-branch }}
