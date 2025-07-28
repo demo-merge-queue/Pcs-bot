@@ -27,3 +27,5 @@ jobs:
         run: echo "base-branch=${{ steps.pretesting.outputs.base-branch }}" >> $GITHUB_ENV
       - name: Set base branch SHA
         run: echo "base-branch-sha=${{ steps.pretesting.outputs.base-branch-sha }}" >> $GITHUB_ENV
+
+
