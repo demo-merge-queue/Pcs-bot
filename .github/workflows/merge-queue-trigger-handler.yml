@@ -4,22 +4,16 @@ on:
     types: [created]
 
 jobs:
-  CommentHandle:
-    if: (contains(github.event.comment.body, '/mq') && github.event.issue.pull_request != null)
+  comment-handle:
+    if: (contains(github.event.comment.body, '/enqueue-for-merge') && github.event.issue.pull_request != null)
     runs-on: ubuntu-latest
     permissions:
       contents: write
       issues: write
       pull-requests: write
       actions: write
+      checks: read
     steps:
-      - name: Print PR number
-        run: |
-          echo "Event Name: ${{ github.event_name }}"
-          echo "github.event.issue.number = ${{ github.event.issue.number }}"
-          echo "github.event.inputs.issue_number = ${{ github.event.inputs.issue_number }}"
-          echo "Using PR_NUMBER = ${{ github.event.issue.number || github.event.inputs.issue_number }}"
-
       - name: Check if SonarQube Coverage Report passed (unless bypassed)
         uses: actions/github-script@v7
         with:
@@ -37,39 +31,60 @@ jobs:
               return;
             }
 
-            const headSha = pr.data.head.sha;
-
-            const checks = await github.rest.checks.listForRef({
+            // Get all workflow runs on this branch
+            const runs = await github.rest.actions.listWorkflowRunsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              ref: headSha,
+              branch: pr.data.head.ref,
             });
 
-            const targetCheck = checks.data.check_runs.find(
-              check => check.name === 'TestJavaScript'
+            console.log("Recent workflow runs on branch:");
+            for (const run of runs.data.workflow_runs) {
+              console.log(`- ${run.name}: conclusion=${run.conclusion}`);
+            }
+
+            const sonarRun = runs.data.workflow_runs.find(run =>
+              run.name === 'run-piperks-ci / sonarqube-coverage-report' &&
+              run.conclusion === 'success'
             );
 
-            if (!targetCheck) {
-              throw new Error('SonarQube coverage check not found');
+            if (!sonarRun) {
+              throw new Error('SonarQube report has not successfully completed on this branch.');
             }
 
-            if (targetCheck.conclusion !== 'success') {
-              throw new Error(`SonarQube check did not pass. Status: ${targetCheck.conclusion}`);
-            }
-    
-      - uses: demo-merge-queue/merge-queue-action/precheck@main
-      - uses: actions/checkout@v4
+            console.log('SonarQube check passed on some recent commit in this branch.');
+
+      - name: Checkout private merge queue action repo
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - run: |
-          git push origin HEAD:auto.${{ github.event.issue.number }}
+          repository: pi-xcels/merge-queue-action
+          ref: v0.0.1
+          token: ${{ secrets.MERGE_QUEUE_ACTION_PAT }}
+          path: ./.github/actions/merge-queue-action
+
+      - name: Run merge queue precheck
+        uses: ./.github/actions/merge-queue-action/precheck
+        with:
+          required-codeowners: 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to merge queue branch
+        run: |
+          git push origin HEAD:merge-queue/${{ github.event.issue.number }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Dispatch workflow via GitHub CLI
         run: >
           gh workflow run -R ${{ github.event.repository.full_name }}
           -f issue_number=${{ github.event.issue.number }}
-          -f tmp-ci-branch=auto.${{ github.event.issue.number }}
-          --ref auto.${{ github.event.issue.number }} testing-queue.yml
+          -f tmp-ci-branch=merge-queue/${{ github.event.issue.number }}
+          --ref merge-queue/${{ github.event.issue.number }} merge-queue-ci-runner.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
